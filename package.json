@@ -1,0 +1,35 @@
+{
+  "name": "binhlaig-ui",
+  "version": "0.1.0",
+  "description": "CLI for installing Binhlaig UI components",
+  "type": "module",
+  "bin": {
+    "binhlaig-ui": "./bin/cli.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "scripts": {
+    "start": "node bin/cli.js",
+    "test": "node bin/cli.js --help && node bin/cli.js list",
+    "pack:check": "npm pack --dry-run"
+  },
+  "keywords": [
+    "binhlaig",
+    "ui",
+    "react",
+    "nextjs",
+    "tailwind",
+    "components"
+  ],
+  "author": "Binhlaig",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^14.0.0",
+    "execa": "^9.6.0"
+  }
+}
