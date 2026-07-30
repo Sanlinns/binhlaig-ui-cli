@@ -16,7 +16,15 @@ const REGISTRY_URL =
   process.env.BINHLAIG_REGISTRY_URL ||
   "https://ui.binhlaig.com/r";
 
-const availableComponents = ["button"];
+// const availableComponents = ["button"];
+
+const availableComponents = [
+  "button",
+  "card",
+  "badge",
+  "input",
+  "tabs",
+];
 
 function getComponentUrl(component) {
   let registryUrl;
