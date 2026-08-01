@@ -16,8 +16,6 @@ const REGISTRY_URL =
   process.env.BINHLAIG_REGISTRY_URL ||
   "https://ui.binhlaig.com/r";
 
-// const availableComponents = ["button"];
-
 const availableComponents = [
   "button",
   "card",
@@ -25,6 +23,30 @@ const availableComponents = [
   "input",
   "tabs",
 ];
+
+const componentImports = {
+  button: 'import { Button } from "@/components/ui/button";',
+  card: `import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";`,
+  badge: 'import { Badge } from "@/components/ui/badge";',
+  input: 'import { Input } from "@/components/ui/input";',
+  tabs: `import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";`,
+};
+
+function getNpxExecutable() {
+  return process.platform === "win32" ? "npx.cmd" : "npx";
+}
 
 function getComponentUrl(component) {
   let registryUrl;
@@ -47,36 +69,148 @@ function getComponentUrl(component) {
   return new URL(`${component}.json`, registryUrl).href;
 }
 
+async function runShadcn(args) {
+  await execa(getNpxExecutable(), ["shadcn@latest", ...args], {
+    cwd: process.cwd(),
+    stdio: "inherit",
+    shell: false,
+  });
+}
+
 program
   .name("binhlaig-ui")
-  .description("Install Binhlaig UI components")
+  .description("Initialize and install Binhlaig UI components")
   .version(packageJson.version);
 
+/**
+ * Initialize Binhlaig UI
+ *
+ * Examples:
+ *   binhlaig-ui init
+ *   binhlaig-ui init --yes
+ *   binhlaig-ui init --base radix
+ *   binhlaig-ui init --base base
+ */
+program
+  .command("init")
+  .description("Initialize Binhlaig UI in the current project")
+  .option(
+    "-b, --base <base>",
+    "Component base: base, radix, or aria",
+  )
+  .option("-y, --yes", "Skip confirmation prompts")
+  .action(async (options) => {
+    const supportedBases = ["base", "radix", "aria"];
+
+    if (
+      options.base &&
+      !supportedBases.includes(options.base.toLowerCase())
+    ) {
+      console.error(
+        chalk.red(
+          `\nUnsupported base: ${options.base}`,
+        ),
+      );
+
+      console.log(
+        chalk.gray(
+          `Supported bases: ${supportedBases.join(", ")}`,
+        ),
+      );
+
+      process.exitCode = 1;
+      return;
+    }
+
+    const args = ["init"];
+
+    if (options.base) {
+      args.push("--base", options.base.toLowerCase());
+    }
+
+    if (options.yes) {
+      args.push("--yes");
+    }
+
+    console.log();
+    console.log(
+      chalk.cyan("Initializing Binhlaig UI..."),
+    );
+    console.log();
+
+    try {
+      await runShadcn(args);
+
+      console.log();
+      console.log(
+        chalk.green(
+          "Binhlaig UI initialized successfully.",
+        ),
+      );
+
+      console.log();
+      console.log(chalk.gray("Next command:"));
+      console.log(
+        chalk.cyan(
+          "npx binhlaig-ui@latest add button",
+        ),
+      );
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `\nFailed to initialize Binhlaig UI: ${
+            error instanceof Error
+              ? error.message
+              : String(error)
+          }`,
+        ),
+      );
+
+      process.exitCode = 1;
+    }
+  });
+
+/**
+ * Add component
+ *
+ * Examples:
+ *   binhlaig-ui add button
+ *   binhlaig-ui add card
+ *   binhlaig-ui add button --overwrite
+ */
 program
   .command("add")
   .description("Add a Binhlaig UI component")
   .argument("<component>", "Component name")
   .option("-o, --overwrite", "Overwrite existing files")
   .action(async (component, options) => {
-    const normalizedComponent = component.trim().toLowerCase();
+    const normalizedComponent = component
+      .trim()
+      .toLowerCase();
 
     if (!availableComponents.includes(normalizedComponent)) {
       console.error(
-        chalk.red(`\nUnknown component: ${normalizedComponent}`),
+        chalk.red(
+          `\nUnknown component: ${normalizedComponent}`,
+        ),
       );
+
       console.log(
         chalk.gray(
           `Available components: ${availableComponents.join(", ")}`,
         ),
       );
+
       process.exitCode = 1;
       return;
     }
 
     try {
-      const componentUrl = getComponentUrl(normalizedComponent);
+      const componentUrl = getComponentUrl(
+        normalizedComponent,
+      );
+
       const args = [
-        "shadcn@latest",
         "add",
         componentUrl,
         "--yes",
@@ -86,33 +220,31 @@ program
         args.push("--overwrite");
       }
 
-      const npxExecutable =
-        process.platform === "win32" ? "npx.cmd" : "npx";
-
+      console.log();
       console.log(
         chalk.cyan(
           `Installing ${normalizedComponent} from ${componentUrl}`,
         ),
       );
+      console.log();
 
-      await execa(npxExecutable, args, {
-        cwd: process.cwd(),
-        stdio: "inherit",
-        shell: false,
-      });
+      await runShadcn(args);
 
+      console.log();
       console.log(
         chalk.green(
-          `\n${normalizedComponent} installed successfully`,
+          `${normalizedComponent} installed successfully`,
         ),
       );
-      console.log();
-      console.log(chalk.green("Use it with:"));
-      console.log(
-        chalk.cyan(
-          'import { Button } from "@/components/ui/button";',
-        ),
-      );
+
+      const importExample =
+        componentImports[normalizedComponent];
+
+      if (importExample) {
+        console.log();
+        console.log(chalk.green("Use it with:"));
+        console.log(chalk.cyan(importExample));
+      }
     } catch (error) {
       console.error(
         chalk.red(
@@ -123,16 +255,22 @@ program
           }`,
         ),
       );
+
       process.exitCode = 1;
     }
   });
 
+/**
+ * List components
+ */
 program
   .command("list")
   .description("List available components")
   .action(() => {
     console.log(
-      chalk.bold("\nAvailable Binhlaig UI components:\n"),
+      chalk.bold(
+        "\nAvailable Binhlaig UI components:\n",
+      ),
     );
 
     for (const component of availableComponents) {
