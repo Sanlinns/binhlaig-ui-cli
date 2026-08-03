@@ -3,18 +3,25 @@
 import process from "node:process";
 import { readFile } from "node:fs/promises";
 import { Command } from "commander";
-import { execa } from "execa";
 import chalk from "chalk";
+
+import {
+  initializeWithShadcn,
+  installWithShadcn,
+} from "../lib/installers/shadcn.js";
+
+import {
+  installWithNative,
+} from "../lib/installers/native.js";
 
 const program = new Command();
 
 const packageJson = JSON.parse(
-  await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  await readFile(
+    new URL("../package.json", import.meta.url),
+    "utf8"
+  )
 );
-
-const REGISTRY_URL =
-  process.env.BINHLAIG_REGISTRY_URL ||
-  "https://ui.binhlaig.com/r";
 
 const availableComponents = [
   "button",
@@ -22,10 +29,13 @@ const availableComponents = [
   "badge",
   "input",
   "tabs",
+  "alert-dialog",
 ];
 
 const componentImports = {
-  button: 'import { Button } from "@/components/ui/button";',
+  button:
+    'import { Button } from "@/components/ui/button";',
+
   card: `import {
   Card,
   CardContent,
@@ -34,8 +44,13 @@ const componentImports = {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";`,
-  badge: 'import { Badge } from "@/components/ui/badge";',
-  input: 'import { Input } from "@/components/ui/input";',
+
+  badge:
+    'import { Badge } from "@/components/ui/badge";',
+
+  input:
+    'import { Input } from "@/components/ui/input";',
+
   tabs: `import {
   Tabs,
   TabsContent,
@@ -44,240 +59,344 @@ const componentImports = {
 } from "@/components/ui/tabs";`,
 };
 
-function getNpxExecutable() {
-  return process.platform === "win32" ? "npx.cmd" : "npx";
-}
-
-function getComponentUrl(component) {
-  let registryUrl;
-
-  try {
-    registryUrl = new URL(`${REGISTRY_URL.replace(/\/+$/, "")}/`);
-  } catch {
-    throw new Error(
-      `Invalid registry URL: ${REGISTRY_URL}. ` +
-        "Set BINHLAIG_REGISTRY_URL to a valid HTTP(S) URL.",
-    );
-  }
-
-  if (!["http:", "https:"].includes(registryUrl.protocol)) {
-    throw new Error(
-      `Unsupported registry protocol: ${registryUrl.protocol}`,
-    );
-  }
-
-  return new URL(`${component}.json`, registryUrl).href;
-}
-
-async function runShadcn(args) {
-  await execa(getNpxExecutable(), ["shadcn@latest", ...args], {
-    cwd: process.cwd(),
-    stdio: "inherit",
-    shell: false,
-  });
-}
-
 program
   .name("binhlaig-ui")
-  .description("Initialize and install Binhlaig UI components")
+  .description(
+    "Initialize and install Binhlaig UI components"
+  )
   .version(packageJson.version);
 
-/**
- * Initialize Binhlaig UI
- *
- * Examples:
- *   binhlaig-ui init
- *   binhlaig-ui init --yes
- *   binhlaig-ui init --base radix
- *   binhlaig-ui init --base base
- */
 program
   .command("init")
-  .description("Initialize Binhlaig UI in the current project")
+  .description(
+    "Initialize Binhlaig UI in the current project"
+  )
   .option(
     "-b, --base <base>",
-    "Component base: base, radix, or aria",
+    "Component base: base, radix, or aria"
   )
-  .option("-y, --yes", "Skip confirmation prompts")
+  .option(
+    "-i, --installer <installer>",
+    "Installer: shadcn or native",
+    "shadcn"
+  )
+  .option(
+    "-y, --yes",
+    "Skip confirmation prompts"
+  )
   .action(async (options) => {
-    const supportedBases = ["base", "radix", "aria"];
+    const installer =
+      normalizeInstaller(options.installer);
+
+    if (!installer) {
+      printInstallerError(options.installer);
+      return;
+    }
+
+    const supportedBases = [
+      "base",
+      "radix",
+      "aria",
+    ];
 
     if (
       options.base &&
-      !supportedBases.includes(options.base.toLowerCase())
+      !supportedBases.includes(
+        options.base.toLowerCase()
+      )
     ) {
       console.error(
         chalk.red(
-          `\nUnsupported base: ${options.base}`,
-        ),
+          `\nUnsupported base: ${options.base}`
+        )
       );
 
       console.log(
         chalk.gray(
-          `Supported bases: ${supportedBases.join(", ")}`,
-        ),
+          `Supported bases: ${supportedBases.join(
+            ", "
+          )}`
+        )
       );
 
       process.exitCode = 1;
       return;
     }
 
-    const args = ["init"];
+    // Native init is not implemented yet.
+    if (installer === "native") {
+      console.log();
+      console.log(
+        chalk.yellow(
+          "Binhlaig Native init is not available yet."
+        )
+      );
+      console.log(
+        chalk.gray(
+          "Use Shadcn init, then install components with Native Beta."
+        )
+      );
+      console.log();
+      console.log(
+        chalk.cyan(
+          "npx binhlaig-ui@latest init --installer shadcn"
+        )
+      );
 
-    if (options.base) {
-      args.push("--base", options.base.toLowerCase());
-    }
-
-    if (options.yes) {
-      args.push("--yes");
+      process.exitCode = 1;
+      return;
     }
 
     console.log();
     console.log(
-      chalk.cyan("Initializing Binhlaig UI..."),
+      chalk.cyan(
+        "Initializing Binhlaig UI with Shadcn CLI..."
+      )
     );
     console.log();
 
     try {
-      await runShadcn(args);
+      await initializeWithShadcn({
+        cwd: process.cwd(),
+        base: options.base?.toLowerCase(),
+        yes: options.yes,
+      });
 
       console.log();
       console.log(
         chalk.green(
-          "Binhlaig UI initialized successfully.",
-        ),
+          "Binhlaig UI initialized successfully."
+        )
       );
 
       console.log();
       console.log(chalk.gray("Next command:"));
       console.log(
         chalk.cyan(
-          "npx binhlaig-ui@latest add button",
-        ),
+          "npx binhlaig-ui@latest add button"
+        )
       );
     } catch (error) {
-      console.error(
-        chalk.red(
-          `\nFailed to initialize Binhlaig UI: ${
-            error instanceof Error
-              ? error.message
-              : String(error)
-          }`,
-        ),
+      printFailure(
+        "Failed to initialize Binhlaig UI",
+        error
       );
-
-      process.exitCode = 1;
     }
   });
 
-/**
- * Add component
- *
- * Examples:
- *   binhlaig-ui add button
- *   binhlaig-ui add card
- *   binhlaig-ui add button --overwrite
- */
 program
   .command("add")
-  .description("Add a Binhlaig UI component")
-  .argument("<component>", "Component name")
-  .option("-o, --overwrite", "Overwrite existing files")
-  .action(async (component, options) => {
-    const normalizedComponent = component
-      .trim()
-      .toLowerCase();
+  .description(
+    "Add one or more Binhlaig UI components"
+  )
+  .argument(
+    "<components...>",
+    "Component names"
+  )
+  .option(
+    "-i, --installer <installer>",
+    "Installer: shadcn or native",
+    "shadcn"
+  )
+  .option(
+    "-o, --overwrite",
+    "Overwrite existing files",
+    false
+  )
+  .action(async (components, options) => {
+    const installer =
+      normalizeInstaller(options.installer);
 
-    if (!availableComponents.includes(normalizedComponent)) {
+    if (!installer) {
+      printInstallerError(options.installer);
+      return;
+    }
+
+    const normalizedComponents = [
+      ...new Set(
+        components.map((component) =>
+          component.trim().toLowerCase()
+        )
+      ),
+    ];
+
+    const unknownComponents =
+      normalizedComponents.filter(
+        (component) =>
+          !availableComponents.includes(component)
+      );
+
+    if (unknownComponents.length > 0) {
       console.error(
         chalk.red(
-          `\nUnknown component: ${normalizedComponent}`,
-        ),
+          `\nUnknown component(s): ${unknownComponents.join(
+            ", "
+          )}`
+        )
       );
 
       console.log(
         chalk.gray(
-          `Available components: ${availableComponents.join(", ")}`,
-        ),
+          `Available components: ${availableComponents.join(
+            ", "
+          )}`
+        )
       );
 
       process.exitCode = 1;
       return;
     }
 
+    console.log();
+    console.log(
+      installer === "native"
+        ? chalk.yellow(
+            "Installer: Binhlaig Native Beta"
+          )
+        : chalk.green(
+            "Installer: Shadcn CLI Stable"
+          )
+    );
+
     try {
-      const componentUrl = getComponentUrl(
-        normalizedComponent,
-      );
+      if (installer === "native") {
+        await installWithNative({
+          cwd: process.cwd(),
+          components: normalizedComponents,
+          overwrite: options.overwrite,
+        });
+      } else {
+        for (const component of
+          normalizedComponents) {
+          console.log();
+          console.log(
+            chalk.cyan(
+              `Installing ${component}...`
+            )
+          );
 
-      const args = [
-        "add",
-        componentUrl,
-        "--yes",
-      ];
-
-      if (options.overwrite) {
-        args.push("--overwrite");
+          await installWithShadcn({
+            cwd: process.cwd(),
+            component,
+            overwrite: options.overwrite,
+          });
+        }
       }
-
-      console.log();
-      console.log(
-        chalk.cyan(
-          `Installing ${normalizedComponent} from ${componentUrl}`,
-        ),
-      );
-      console.log();
-
-      await runShadcn(args);
 
       console.log();
       console.log(
         chalk.green(
-          `${normalizedComponent} installed successfully`,
-        ),
+          `${normalizedComponents.join(
+            ", "
+          )} installed successfully.`
+        )
       );
 
-      const importExample =
-        componentImports[normalizedComponent];
-
-      if (importExample) {
-        console.log();
-        console.log(chalk.green("Use it with:"));
-        console.log(chalk.cyan(importExample));
-      }
+      printImportExamples(
+        normalizedComponents
+      );
     } catch (error) {
-      console.error(
-        chalk.red(
-          `\nFailed to install ${normalizedComponent}: ${
-            error instanceof Error
-              ? error.message
-              : String(error)
-          }`,
-        ),
+      printFailure(
+        `Failed to install ${normalizedComponents.join(
+          ", "
+        )}`,
+        error
       );
-
-      process.exitCode = 1;
     }
   });
 
-/**
- * List components
- */
 program
   .command("list")
   .description("List available components")
   .action(() => {
     console.log(
       chalk.bold(
-        "\nAvailable Binhlaig UI components:\n",
-      ),
+        "\nAvailable Binhlaig UI components:\n"
+      )
     );
 
-    for (const component of availableComponents) {
+    for (const component of
+      availableComponents) {
       console.log(`  - ${component}`);
     }
 
     console.log();
+    console.log(
+      chalk.gray(
+        "Stable: --installer shadcn"
+      )
+    );
+    console.log(
+      chalk.gray(
+        "Beta:   --installer native"
+      )
+    );
+    console.log();
   });
+
+function normalizeInstaller(installer) {
+  const normalized = String(installer)
+    .trim()
+    .toLowerCase();
+
+  if (
+    normalized !== "native" &&
+    normalized !== "shadcn"
+  ) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function printInstallerError(installer) {
+  console.error(
+    chalk.red(
+      `\nUnsupported installer: ${installer}`
+    )
+  );
+
+  console.log(
+    chalk.gray(
+      "Supported installers: shadcn, native"
+    )
+  );
+
+  process.exitCode = 1;
+}
+
+function printFailure(title, error) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error);
+
+  console.error(
+    chalk.red(`\n${title}:\n${message}`)
+  );
+
+  process.exitCode = 1;
+}
+
+function printImportExamples(components) {
+  for (const component of components) {
+    const importExample =
+      componentImports[component];
+
+    if (!importExample) {
+      continue;
+    }
+
+    console.log();
+    console.log(
+      chalk.green(
+        `Use ${component} with:`
+      )
+    );
+    console.log(
+      chalk.cyan(importExample)
+    );
+  }
+}
 
 await program.parseAsync(process.argv);
