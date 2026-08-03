@@ -1,13 +1,15 @@
 # Binhlaig UI CLI
 
-The Binhlaig UI CLI installs Binhlaig UI components through the
-[shadcn CLI](https://ui.shadcn.com/docs/cli). It uses the Binhlaig component
-registry at `https://ui.binhlaig.com/r` by default.
+The Binhlaig UI CLI initializes projects and installs components using either
+the Binhlaig Native Beta installer or the
+[shadcn CLI](https://ui.shadcn.com/docs/cli). The native installer uses the
+Binhlaig component registry at `https://ui.binhlaig.com/r` by default.
 
 ## Requirements
 
 - Node.js 20 or newer
-- A project configured to use shadcn
+- A Next.js, Vite React, or React project
+- A project configured for shadcn when using the Shadcn CLI installer
 
 ## Production usage
 
@@ -26,10 +28,27 @@ binhlaig-ui add button
 
 ## Commands
 
-Install the button component:
+Initialize a project and choose an installer interactively:
 
 ```bash
-binhlaig-ui add button
+binhlaig-ui init
+```
+
+Initialize directly with one installer:
+
+```bash
+binhlaig-ui init --installer native
+binhlaig-ui init --installer shadcn
+```
+
+Native initialization creates `binhlaig.json` and does not overwrite an
+existing configuration file.
+
+Install the button component with either installer:
+
+```bash
+binhlaig-ui add button --installer native
+binhlaig-ui add button --installer shadcn
 ```
 
 List the available components:
@@ -38,10 +57,10 @@ List the available components:
 binhlaig-ui list
 ```
 
-Overwrite existing component files when supported by shadcn:
+Overwrite existing component files:
 
 ```bash
-binhlaig-ui add button --overwrite
+binhlaig-ui add button --installer native --overwrite
 ```
 
 ## Local CLI development
@@ -58,7 +77,7 @@ Alternatively, run the entry point directly:
 
 ```bash
 node bin/cli.js list
-node bin/cli.js add button
+node bin/cli.js add button --installer native
 ```
 
 Paths containing spaces are supported. The CLI invokes `npx` directly without
@@ -72,14 +91,14 @@ PowerShell:
 
 ```powershell
 $env:BINHLAIG_REGISTRY_URL="http://localhost:3000/r"
-node bin/cli.js add button
+node bin/cli.js add button --installer native
 Remove-Item Env:BINHLAIG_REGISTRY_URL
 ```
 
 macOS or Linux:
 
 ```bash
-BINHLAIG_REGISTRY_URL=http://localhost:3000/r node bin/cli.js add button
+BINHLAIG_REGISTRY_URL=http://localhost:3000/r node bin/cli.js add button --installer native
 ```
 
 The local registry must serve the component at

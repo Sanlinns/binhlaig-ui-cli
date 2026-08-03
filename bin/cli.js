@@ -3,6 +3,7 @@
 import process from "node:process";
 import { readFile } from "node:fs/promises";
 import { Command } from "commander";
+import { select } from "@inquirer/prompts";
 import chalk from "chalk";
 
 import {
@@ -11,6 +12,7 @@ import {
 } from "../lib/installers/shadcn.js";
 
 import {
+  initializeWithNative,
   installWithNative,
 } from "../lib/installers/native.js";
 
@@ -57,6 +59,18 @@ const componentImports = {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";`,
+
+  "alert-dialog": `import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";`,
 };
 
 program
@@ -66,6 +80,15 @@ program
   )
   .version(packageJson.version);
 
+/**
+ * INIT COMMAND
+ *
+ * Examples:
+ *   binhlaig-ui init
+ *   binhlaig-ui init --installer native
+ *   binhlaig-ui init --installer shadcn
+ *   binhlaig-ui init --installer shadcn --base base
+ */
 program
   .command("init")
   .description(
@@ -77,88 +100,142 @@ program
   )
   .option(
     "-i, --installer <installer>",
-    "Installer: shadcn or native",
-    "shadcn"
+    "Installer: native or shadcn"
   )
   .option(
     "-y, --yes",
     "Skip confirmation prompts"
   )
   .action(async (options) => {
-    const installer =
-      normalizeInstaller(options.installer);
+    try {
+      let installer;
 
-    if (!installer) {
-      printInstallerError(options.installer);
-      return;
-    }
+      // An explicit installer bypasses the selection prompt.
+      if (options.installer) {
+        installer = normalizeInstaller(
+          options.installer
+        );
 
-    const supportedBases = [
-      "base",
-      "radix",
-      "aria",
-    ];
+        if (!installer) {
+          printInstallerError(options.installer);
+          return;
+        }
+      } else {
+        // Without an option, let the user choose interactively.
+        installer = await select({
+          message: "Choose an installer",
+          choices: [
+            {
+              name: "Binhlaig Native Beta",
+              value: "native",
+              description:
+                "Binhlaig's own component installer",
+            },
+            {
+              name: "Shadcn CLI Stable",
+              value: "shadcn",
+              description:
+                "Stable compatibility installer",
+            },
+          ],
+          default: "native",
+        });
+      }
 
-    if (
-      options.base &&
-      !supportedBases.includes(
-        options.base.toLowerCase()
-      )
-    ) {
-      console.error(
-        chalk.red(
-          `\nUnsupported base: ${options.base}`
-        )
-      );
-
-      console.log(
-        chalk.gray(
-          `Supported bases: ${supportedBases.join(
-            ", "
-          )}`
-        )
-      );
-
-      process.exitCode = 1;
-      return;
-    }
-
-    // Native init is not implemented yet.
-    if (installer === "native") {
       console.log();
+
+      /*
+       * Native initialization
+       */
+      if (installer === "native") {
+        console.log(
+          chalk.yellow(
+            "Installer: Binhlaig Native Beta"
+          )
+        );
+
+        console.log();
+        console.log(
+          chalk.cyan(
+            "Initializing Binhlaig UI with Native Installer..."
+          )
+        );
+        console.log();
+
+        await initializeWithNative({
+          cwd: process.cwd(),
+          yes: options.yes,
+        });
+
+        console.log();
+        console.log(
+          chalk.green(
+            "Binhlaig UI Native initialization completed."
+          )
+        );
+
+        console.log();
+        console.log(chalk.gray("Next command:"));
+        console.log(
+          chalk.cyan(
+            "npx binhlaig-ui@latest add button --installer native"
+          )
+        );
+
+        return;
+      }
+
+      /*
+       * Shadcn initialization
+       */
+      const supportedBases = [
+        "base",
+        "radix",
+        "aria",
+      ];
+
+      const selectedBase =
+        options.base?.trim().toLowerCase();
+
+      if (
+        selectedBase &&
+        !supportedBases.includes(selectedBase)
+      ) {
+        console.error(
+          chalk.red(
+            `\nUnsupported base: ${options.base}`
+          )
+        );
+
+        console.log(
+          chalk.gray(
+            `Supported bases: ${supportedBases.join(
+              ", "
+            )}`
+          )
+        );
+
+        process.exitCode = 1;
+        return;
+      }
+
       console.log(
-        chalk.yellow(
-          "Binhlaig Native init is not available yet."
+        chalk.green(
+          "Installer: Shadcn CLI Stable"
         )
       );
-      console.log(
-        chalk.gray(
-          "Use Shadcn init, then install components with Native Beta."
-        )
-      );
+
       console.log();
       console.log(
         chalk.cyan(
-          "npx binhlaig-ui@latest init --installer shadcn"
+          "Initializing Binhlaig UI with Shadcn CLI..."
         )
       );
+      console.log();
 
-      process.exitCode = 1;
-      return;
-    }
-
-    console.log();
-    console.log(
-      chalk.cyan(
-        "Initializing Binhlaig UI with Shadcn CLI..."
-      )
-    );
-    console.log();
-
-    try {
       await initializeWithShadcn({
         cwd: process.cwd(),
-        base: options.base?.toLowerCase(),
+        base: selectedBase,
         yes: options.yes,
       });
 
@@ -177,6 +254,19 @@ program
         )
       );
     } catch (error) {
+      // Inquirer uses ExitPromptError for Ctrl+C cancellation.
+      if (error?.name === "ExitPromptError") {
+        console.log();
+        console.log(
+          chalk.yellow(
+            "Binhlaig UI initialization cancelled."
+          )
+        );
+
+        process.exitCode = 130;
+        return;
+      }
+
       printFailure(
         "Failed to initialize Binhlaig UI",
         error
@@ -184,6 +274,14 @@ program
     }
   });
 
+/**
+ * ADD COMMAND
+ *
+ * Examples:
+ *   binhlaig-ui add button
+ *   binhlaig-ui add button --installer native
+ *   binhlaig-ui add button card input
+ */
 program
   .command("add")
   .description(
@@ -195,7 +293,7 @@ program
   )
   .option(
     "-i, --installer <installer>",
-    "Installer: shadcn or native",
+    "Installer: native or shadcn",
     "shadcn"
   )
   .option(
@@ -214,9 +312,11 @@ program
 
     const normalizedComponents = [
       ...new Set(
-        components.map((component) =>
-          component.trim().toLowerCase()
-        )
+        components
+          .map((component) =>
+            component.trim().toLowerCase()
+          )
+          .filter(Boolean)
       ),
     ];
 
@@ -248,6 +348,7 @@ program
     }
 
     console.log();
+
     console.log(
       installer === "native"
         ? chalk.yellow(
@@ -269,6 +370,7 @@ program
         for (const component of
           normalizedComponents) {
           console.log();
+
           console.log(
             chalk.cyan(
               `Installing ${component}...`
@@ -284,6 +386,7 @@ program
       }
 
       console.log();
+
       console.log(
         chalk.green(
           `${normalizedComponents.join(
@@ -305,6 +408,9 @@ program
     }
   });
 
+/**
+ * LIST COMMAND
+ */
 program
   .command("list")
   .description("List available components")
@@ -335,6 +441,10 @@ program
   });
 
 function normalizeInstaller(installer) {
+  if (!installer) {
+    return null;
+  }
+
   const normalized = String(installer)
     .trim()
     .toLowerCase();
@@ -358,7 +468,7 @@ function printInstallerError(installer) {
 
   console.log(
     chalk.gray(
-      "Supported installers: shadcn, native"
+      "Supported installers: native, shadcn"
     )
   );
 
@@ -388,11 +498,13 @@ function printImportExamples(components) {
     }
 
     console.log();
+
     console.log(
       chalk.green(
         `Use ${component} with:`
       )
     );
+
     console.log(
       chalk.cyan(importExample)
     );
