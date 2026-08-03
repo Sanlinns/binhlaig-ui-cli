@@ -73,6 +73,11 @@ idempotent Tailwind CSS v4 theme to the global stylesheet; and installs the
 Native runtime dependencies. It does not overwrite an existing configuration
 or utility file.
 
+Both initialization paths manage the same theme between
+`/* binhlaig-ui-theme:start */` and `/* binhlaig-ui-theme:end */`. Re-running
+init updates that managed block while preserving CSS outside it and migrates
+themes created by older CLI versions.
+
 Install the button component with either installer:
 
 ```bash

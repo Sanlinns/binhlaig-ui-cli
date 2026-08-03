@@ -14,6 +14,12 @@ import {
 } from "../lib/installers/shadcn.js";
 import { resolveRegistryPath } from "../lib/project.js";
 import { getComponentUrl } from "../lib/registry.js";
+import {
+  BINHLAIG_THEME_BLOCK,
+  THEME_END_MARKER,
+  THEME_START_MARKER,
+  updateBinhlaigThemeCss,
+} from "../lib/theme.js";
 
 async function createProject({ src = false } = {}) {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "binhlaig-test-"));
@@ -118,7 +124,7 @@ for (const hasSrc of [false, true]) {
       const css = await readFile(cssPath, "utf8");
       assert.match(css, /^@import "tailwindcss";/);
       assert.match(css, /\.existing \{ color: red; \}/);
-      assert.match(css, /\/\* binhlaig-ui-theme \*\//);
+      assert.match(css, /\/\* binhlaig-ui-theme:start \*\//);
       assert.match(css, /:root \{/);
       assert.match(css, /\.dark \{/);
       assert.match(css, /@theme inline/);
@@ -143,7 +149,8 @@ for (const hasSrc of [false, true]) {
       assert.equal(await readFile(configPath, "utf8"), originalConfig);
       assert.equal(await readFile(utilsPath, "utf8"), "// keep existing utils\n");
       const repeatedCss = await readFile(cssPath, "utf8");
-      assert.equal(repeatedCss.split("/* binhlaig-ui-theme */").length - 1, 1);
+      assert.equal(repeatedCss.split(THEME_START_MARKER).length - 1, 1);
+      assert.equal(repeatedCss.split(THEME_END_MARKER).length - 1, 1);
       assert.equal(repeatedCss.split('@import "tailwindcss";').length - 1, 1);
     });
   });
@@ -175,7 +182,7 @@ for (const fallback of [
     });
     const css = await readFile(cssPath, "utf8");
     assert.match(css, /\/\* existing fallback \*\//);
-    assert.match(css, /\/\* binhlaig-ui-theme \*\//);
+    assert.match(css, /\/\* binhlaig-ui-theme:start \*\//);
   });
 }
 
@@ -197,6 +204,86 @@ test("registry paths support projects with and without src and reject traversal"
     () => resolveRegistryPath({ cwd, registryPath: "components/../../../escape.ts", hasSrc: false }),
     /Unsafe registry file path/
   );
+});
+
+test("managed theme is identical for Native and Shadcn CSS foundations", () => {
+  const native = updateBinhlaigThemeCss(":root { --background: white; }").css;
+  const shadcn = updateBinhlaigThemeCss(
+    '@import "tailwindcss";\n@custom-variant dark (&:is(.dark *));\n:root { --primary: black; }'
+  ).css;
+  assert.equal(extractManagedTheme(native), BINHLAIG_THEME_BLOCK);
+  assert.equal(extractManagedTheme(shadcn), BINHLAIG_THEME_BLOCK);
+});
+
+test("managed theme replaces outdated blocks and preserves user CSS", () => {
+  const input = `@import "tailwindcss";
+@import 'tailwindcss';
+.user-rule { color: rebeccapurple; }
+/* binhlaig-ui-theme:start */
+:root { --primary: outdated; }
+/* binhlaig-ui-theme:end */
+`;
+  const first = updateBinhlaigThemeCss(input);
+  assert.equal(first.changed, true);
+  assert.match(first.css, /\.user-rule \{ color: rebeccapurple; \}/);
+  assert.doesNotMatch(first.css, /outdated/);
+  assert.equal(first.css.split(THEME_START_MARKER).length - 1, 1);
+  assert.equal(first.css.split('@import "tailwindcss";').length - 1, 1);
+  assert.equal(first.css.split('@import "tw-animate-css";').length - 1, 1);
+
+  const repeated = updateBinhlaigThemeCss(first.css);
+  assert.equal(repeated.changed, false);
+  assert.equal(repeated.css, first.css);
+});
+
+test("legacy single-marker themes migrate without duplication", () => {
+  const legacy = `@import "tailwindcss";
+.before { display: block; }
+/* binhlaig-ui-theme */
+:root { --primary: old; }
+.dark { --primary: old-dark; }
+@theme inline { --color-primary: var(--primary); }
+@layer base { body { color: red; } }
+.after { display: grid; }
+`;
+  const result = updateBinhlaigThemeCss(legacy).css;
+  assert.doesNotMatch(result, /binhlaig-ui-theme \*\//);
+  assert.doesNotMatch(result, /--primary: old/);
+  assert.match(result, /\.before \{ display: block; \}/);
+  assert.match(result, /\.after \{ display: grid; \}/);
+  assert.equal(result.split(THEME_START_MARKER).length - 1, 1);
+});
+
+test("critical project theme variables and mappings match the authoritative values", () => {
+  const required = [
+    "--background: oklch(1 0 0)",
+    "--foreground: oklch(0.145 0 0)",
+    "--primary: oklch(0.205 0 0)",
+    "--primary-foreground: oklch(0.985 0 0)",
+    "--secondary: oklch(0.97 0 0)",
+    "--secondary-foreground: oklch(0.205 0 0)",
+    "--accent: oklch(0.97 0 0)",
+    "--accent-foreground: oklch(0.205 0 0)",
+    "--border: oklch(0.922 0 0)",
+    "--input: oklch(0.922 0 0)",
+    "--ring: oklch(0.708 0 0)",
+    "--radius: 0.625rem",
+    "--color-background: var(--background)",
+    "--color-foreground: var(--foreground)",
+    "--color-primary: var(--primary)",
+    "--color-primary-foreground: var(--primary-foreground)",
+    "--color-secondary: var(--secondary)",
+    "--color-secondary-foreground: var(--secondary-foreground)",
+    "--color-accent: var(--accent)",
+    "--color-accent-foreground: var(--accent-foreground)",
+    "--color-border: var(--border)",
+    "--color-input: var(--input)",
+    "--color-ring: var(--ring)",
+  ];
+  for (const declaration of required) {
+    assert.ok(BINHLAIG_THEME_BLOCK.includes(declaration), declaration);
+  }
+  assert.match(BINHLAIG_THEME_BLOCK, /@custom-variant dark \(&:where\(\.dark, \.dark \*\)\)/);
 });
 
 test("production component URLs are normalized and unsafe names are rejected", () => {
@@ -324,7 +411,7 @@ test("shadcn init applies the shared foundation and add uses the Binhlaig URL", 
         );
         assert.match(
           await readFile(path.join(cwd, "app", "globals.css"), "utf8"),
-          /\/\* binhlaig-ui-theme \*\//
+          /\/\* binhlaig-ui-theme:start \*\//
         );
         assert.equal(
           (await stat(path.join(cwd, "components", "ui"))).isDirectory(),
@@ -346,6 +433,12 @@ test("shadcn init applies the shared foundation and add uses the Binhlaig URL", 
     else process.env.BINHLAIG_REGISTRY_URL = originalRegistry;
   }
 });
+
+function extractManagedTheme(css) {
+  const start = css.indexOf(THEME_START_MARKER);
+  const end = css.indexOf(THEME_END_MARKER, start);
+  return css.slice(start, end + THEME_END_MARKER.length);
+}
 
 test("shadcn init uses Base UI and Nova defaults when no base is provided", async () => {
   const cwd = await createProject();
