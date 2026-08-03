@@ -5,6 +5,15 @@ the Binhlaig Native Beta installer or the
 [shadcn CLI](https://ui.shadcn.com/docs/cli). The native installer uses the
 Binhlaig component registry at `https://ui.binhlaig.com/r` by default.
 
+- **Binhlaig Native Beta** uses the native installation engine and installs
+  Binhlaig registry components directly.
+- **Shadcn CLI Stable** uses the Shadcn CLI installation engine, but still
+  installs the same Binhlaig registry components rather than the standard
+  Shadcn component implementations.
+
+Both installers apply the same Binhlaig foundation and produce the same
+component API and design.
+
 ## Requirements
 
 - Node.js 20 or newer
@@ -29,7 +38,12 @@ Then install a component:
 
 ```bash
 npx binhlaig-ui@latest add button --installer native
+npx binhlaig-ui@latest add button --installer shadcn
 ```
+
+If an older or standard Shadcn Button already exists, add `--overwrite` to
+replace it with the Binhlaig registry implementation. Otherwise, both
+installers preserve existing component files.
 
 You can also install the package globally:
 

@@ -13,6 +13,7 @@ import {
   installWithShadcn,
 } from "../lib/installers/shadcn.js";
 import { resolveRegistryPath } from "../lib/project.js";
+import { getComponentUrl } from "../lib/registry.js";
 
 async function createProject({ src = false } = {}) {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "binhlaig-test-"));
@@ -57,32 +58,28 @@ async function withFakeExecutable({ command = "npm", fail = false } = {}, callba
   const binDir = await mkdtemp(path.join(os.tmpdir(), "binhlaig-bin-"));
   const logPath = path.join(binDir, "calls.log");
   const originalPath = process.env.PATH;
-  const originalLog = process.env.BINHLAIG_TEST_LOG;
 
   if (process.platform === "win32") {
     await writeFile(
       path.join(binDir, `${command}.cmd`),
-      `@echo %*>>"%BINHLAIG_TEST_LOG%"\r\n@exit /b ${fail ? 1 : 0}\r\n`,
+      `@echo %*>>"${logPath}"\r\n@exit /b ${fail ? 1 : 0}\r\n`,
       "utf8"
     );
   } else {
     const executable = path.join(binDir, command);
     await writeFile(
       executable,
-      `#!/bin/sh\necho "$*" >> "$BINHLAIG_TEST_LOG"\nexit ${fail ? 1 : 0}\n`,
+      `#!/bin/sh\necho "$*" >> "${logPath}"\nexit ${fail ? 1 : 0}\n`,
       "utf8"
     );
     await chmod(executable, 0o755);
   }
 
   process.env.PATH = `${binDir}${path.delimiter}${originalPath}`;
-  process.env.BINHLAIG_TEST_LOG = logPath;
   try {
     return await callback(logPath);
   } finally {
     process.env.PATH = originalPath;
-    if (originalLog === undefined) delete process.env.BINHLAIG_TEST_LOG;
-    else process.env.BINHLAIG_TEST_LOG = originalLog;
   }
 }
 
@@ -202,6 +199,26 @@ test("registry paths support projects with and without src and reject traversal"
   );
 });
 
+test("production component URLs are normalized and unsafe names are rejected", () => {
+  const originalRegistry = process.env.BINHLAIG_REGISTRY_URL;
+  delete process.env.BINHLAIG_REGISTRY_URL;
+  try {
+    assert.equal(
+      getComponentUrl("button"),
+      "https://ui.binhlaig.com/r/button.json"
+    );
+    assert.equal(
+      getComponentUrl(" Alert-Dialog.JSON "),
+      "https://ui.binhlaig.com/r/alert-dialog.json"
+    );
+    assert.throws(() => getComponentUrl(""), /required/);
+    assert.throws(() => getComponentUrl("../button"), /Invalid component name/);
+  } finally {
+    if (originalRegistry === undefined) delete process.env.BINHLAIG_REGISTRY_URL;
+    else process.env.BINHLAIG_REGISTRY_URL = originalRegistry;
+  }
+});
+
 test("native button installation succeeds after initialization", async () => {
   const cwd = await createProject({ src: true });
   const items = {
@@ -292,20 +309,53 @@ test("native install detects circular registry dependencies", async () => {
   );
 });
 
-test("shadcn initialization and installation invoke npx with expected arguments", async () => {
+test("shadcn init applies the shared foundation and add uses the Binhlaig URL", async () => {
   const cwd = await createProject();
   const originalRegistry = process.env.BINHLAIG_REGISTRY_URL;
   process.env.BINHLAIG_REGISTRY_URL = "https://registry.example.test/r";
   try {
-    await withFakeExecutable({ command: "npx" }, async (logPath) => {
-      await initializeWithShadcn({ cwd, base: "radix", yes: true });
-      await installWithShadcn({ cwd, component: "button", overwrite: true });
-      const calls = await readFile(logPath, "utf8");
-      assert.match(calls, /shadcn@latest.+init.+--base.+radix.+--yes/);
-      assert.match(calls, /shadcn@latest.+add.+https:\/\/registry\.example\.test\/r\/button\.json.+--yes.+--overwrite/);
+    await withFakeExecutable({ command: "npx" }, async (npxLog) => {
+      await withFakeExecutable({ command: "npm" }, async (npmLog) => {
+        const foundation = await initializeWithShadcn({ cwd, base: "radix", yes: true });
+        assert.equal(foundation.framework, "next");
+        assert.match(
+          await readFile(path.join(cwd, "lib", "utils.ts"), "utf8"),
+          /export function cn/
+        );
+        assert.match(
+          await readFile(path.join(cwd, "app", "globals.css"), "utf8"),
+          /\/\* binhlaig-ui-theme \*\//
+        );
+        assert.equal(
+          (await stat(path.join(cwd, "components", "ui"))).isDirectory(),
+          true
+        );
+
+        await installWithShadcn({ cwd, component: "button", overwrite: true });
+        const npxCalls = await readFile(npxLog, "utf8");
+        assert.match(npxCalls, /shadcn@latest.+init.+--base.+radix.+--yes/);
+        assert.match(npxCalls, /shadcn@latest.+add.+https:\/\/registry\.example\.test\/r\/button\.json.+--yes.+--overwrite/);
+
+        const packageCalls = await readFile(npmLog, "utf8");
+        assert.match(packageCalls, /@base-ui\/react/);
+        assert.match(packageCalls, /class-variance-authority/);
+      });
     });
   } finally {
     if (originalRegistry === undefined) delete process.env.BINHLAIG_REGISTRY_URL;
     else process.env.BINHLAIG_REGISTRY_URL = originalRegistry;
   }
+});
+
+test("shadcn init uses Base UI and Nova defaults when no base is provided", async () => {
+  const cwd = await createProject();
+  await withFakeExecutable({ command: "npx" }, async (npxLog) => {
+    await withFakeExecutable({ command: "npm" }, async () => {
+      await initializeWithShadcn({ cwd, yes: true });
+    });
+    assert.match(
+      await readFile(npxLog, "utf8"),
+      /shadcn@latest.+init.+--base.+base.+--preset.+nova.+--yes/
+    );
+  });
 });
