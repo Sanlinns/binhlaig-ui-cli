@@ -44,11 +44,5 @@
     "chalk": "^5.4.1",
     "commander": "^14.0.0",
     "execa": "^9.6.0"
-  },
-  "main": "index.js",
-  "directories": {
-    "lib": "lib",
-    "test": "test"
-  },
-  "devDependencies": {}
+  }
 }

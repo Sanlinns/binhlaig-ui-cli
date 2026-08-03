@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, writeFile, chmod } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -86,28 +86,111 @@ async function withFakeExecutable({ command = "npm", fail = false } = {}, callba
   }
 }
 
-test("native initialization creates valid config and preserves an existing one", async () => {
-  const cwd = await createProject({ src: true });
-  const first = await initializeWithNative({ cwd });
-  assert.equal(first.created, true);
+for (const hasSrc of [false, true]) {
+  test(`native initialization prepares Next.js with src=${hasSrc}`, async () => {
+    const cwd = await createProject({ src: hasSrc });
+    const sourceRoot = hasSrc ? path.join(cwd, "src") : cwd;
+    const cssPath = path.join(sourceRoot, "app", "globals.css");
+    await mkdir(path.dirname(cssPath), { recursive: true });
+    await writeFile(cssPath, ".existing { color: red; }\n", "utf8");
 
+    await withFakeExecutable({}, async (logPath) => {
+      const first = await initializeWithNative({ cwd });
+      assert.equal(first.created, true);
+      assert.equal(first.framework, "next");
+      assert.equal(first.packageManager, "npm");
+      assert.equal(first.hasSrc, hasSrc);
+
+      const configPath = path.join(cwd, "binhlaig.json");
+      const originalConfig = await readFile(configPath, "utf8");
+      const config = JSON.parse(originalConfig);
+      assert.equal(config.installer, "native");
+      assert.equal(config.framework, "next");
+      assert.equal(config.srcDir, hasSrc);
+      assert.equal(config.aliases.utils, "@/lib/utils");
+
+      const utilsPath = path.join(sourceRoot, "lib", "utils.ts");
+      const utils = await readFile(utilsPath, "utf8");
+      assert.match(utils, /import \{ clsx, type ClassValue \} from "clsx"/);
+      assert.match(utils, /return twMerge\(clsx\(inputs\)\)/);
+      assert.equal(
+        (await stat(path.join(sourceRoot, "components", "ui"))).isDirectory(),
+        true
+      );
+
+      const css = await readFile(cssPath, "utf8");
+      assert.match(css, /^@import "tailwindcss";/);
+      assert.match(css, /\.existing \{ color: red; \}/);
+      assert.match(css, /\/\* binhlaig-ui-theme \*\//);
+      assert.match(css, /:root \{/);
+      assert.match(css, /\.dark \{/);
+      assert.match(css, /@theme inline/);
+      assert.match(css, /@apply border-border outline-ring\/50/);
+      assert.match(css, /@apply bg-background text-foreground/);
+
+      const calls = await readFile(logPath, "utf8");
+      for (const dependency of [
+        "@base-ui/react",
+        "class-variance-authority",
+        "clsx",
+        "lucide-react",
+        "tailwind-merge",
+        "tw-animate-css",
+      ]) {
+        assert.match(calls, new RegExp(dependency));
+      }
+
+      await writeFile(utilsPath, "// keep existing utils\n", "utf8");
+      const second = await initializeWithNative({ cwd });
+      assert.equal(second.created, false);
+      assert.equal(await readFile(configPath, "utf8"), originalConfig);
+      assert.equal(await readFile(utilsPath, "utf8"), "// keep existing utils\n");
+      const repeatedCss = await readFile(cssPath, "utf8");
+      assert.equal(repeatedCss.split("/* binhlaig-ui-theme */").length - 1, 1);
+      assert.equal(repeatedCss.split('@import "tailwindcss";').length - 1, 1);
+    });
+  });
+}
+
+test("native initialization preserves a pre-existing config", async () => {
+  const cwd = await createProject();
   const configPath = path.join(cwd, "binhlaig.json");
-  const original = await readFile(configPath, "utf8");
-  const config = JSON.parse(original);
-  assert.equal(config.installer, "native");
-  assert.equal(config.framework, "next");
-  assert.equal(config.srcDir, true);
-
-  const second = await initializeWithNative({ cwd });
-  assert.equal(second.created, false);
-  assert.equal(await readFile(configPath, "utf8"), original);
+  const customConfig = '{"custom":true}\n';
+  await writeFile(configPath, customConfig, "utf8");
+  await withFakeExecutable({}, () => initializeWithNative({ cwd }));
+  assert.equal(await readFile(configPath, "utf8"), customConfig);
 });
+
+for (const fallback of [
+  "styles/globals.css",
+  "src/styles/globals.css",
+  "index.css",
+  "src/index.css",
+]) {
+  test(`native initialization uses existing CSS fallback ${fallback}`, async () => {
+    const cwd = await createProject();
+    const cssPath = path.join(cwd, fallback);
+    await mkdir(path.dirname(cssPath), { recursive: true });
+    await writeFile(cssPath, "/* existing fallback */\n", "utf8");
+    await withFakeExecutable({}, async () => {
+      const result = await initializeWithNative({ cwd });
+      assert.equal(result.cssPath, cssPath);
+    });
+    const css = await readFile(cssPath, "utf8");
+    assert.match(css, /\/\* existing fallback \*\//);
+    assert.match(css, /\/\* binhlaig-ui-theme \*\//);
+  });
+}
 
 test("registry paths support projects with and without src and reject traversal", () => {
   const cwd = path.resolve(os.tmpdir(), "binhlaig-path-test");
   assert.equal(
     resolveRegistryPath({ cwd, registryPath: "registry/button.tsx", registryType: "registry:ui", hasSrc: false }),
     path.join(cwd, "components", "ui", "button.tsx")
+  );
+  assert.equal(
+    resolveRegistryPath({ cwd, registryPath: "registry/utils.ts", target: "@/lib/utils.ts", hasSrc: true }),
+    path.join(cwd, "src", "lib", "utils.ts")
   );
   assert.equal(
     resolveRegistryPath({ cwd, registryPath: "registry/button.tsx", registryType: "registry:ui", hasSrc: true }),
@@ -117,6 +200,27 @@ test("registry paths support projects with and without src and reject traversal"
     () => resolveRegistryPath({ cwd, registryPath: "components/../../../escape.ts", hasSrc: false }),
     /Unsafe registry file path/
   );
+});
+
+test("native button installation succeeds after initialization", async () => {
+  const cwd = await createProject({ src: true });
+  const items = {
+    button: {
+      files: [{
+        path: "registry/button.tsx",
+        type: "registry:ui",
+        content: 'import { cn } from "@/lib/utils";\nexport const buttonClass = cn("button");\n',
+      }],
+    },
+  };
+
+  await withFakeExecutable({}, async () => {
+    await initializeWithNative({ cwd });
+    await withRegistry(items, () => installWithNative({ cwd, components: ["button"] }));
+  });
+  const button = await readFile(path.join(cwd, "src", "components", "ui", "button.tsx"), "utf8");
+  assert.match(button, /from "@\/lib\/utils"/);
+  assert.match(await readFile(path.join(cwd, "src", "lib", "utils.ts"), "utf8"), /export function cn/);
 });
 
 test("native install resolves registry dependencies, files, and package dependencies", async () => {

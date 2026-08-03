@@ -16,7 +16,19 @@ Binhlaig component registry at `https://ui.binhlaig.com/r` by default.
 Run the latest published version without installing it globally:
 
 ```bash
-npx binhlaig-ui@latest add button
+npx binhlaig-ui@latest init
+```
+
+Choose:
+
+```text
+Binhlaig Native Beta
+```
+
+Then install a component:
+
+```bash
+npx binhlaig-ui@latest add button --installer native
 ```
 
 You can also install the package globally:
@@ -41,8 +53,11 @@ binhlaig-ui init --installer native
 binhlaig-ui init --installer shadcn
 ```
 
-Native initialization creates `binhlaig.json` and does not overwrite an
-existing configuration file.
+Native initialization detects the framework, package manager, and `src`
+layout; creates `binhlaig.json`, `components/ui`, and `lib/utils.ts`; adds the
+idempotent Tailwind CSS v4 theme to the global stylesheet; and installs the
+Native runtime dependencies. It does not overwrite an existing configuration
+or utility file.
 
 Install the button component with either installer:
 
