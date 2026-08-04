@@ -30,7 +30,10 @@ const availableComponents = [
   "card",
   "badge",
   "input",
+  "textarea",
   "tabs",
+  "popover",
+  "form",
   "alert-dialog",
 ];
 
@@ -52,6 +55,33 @@ const componentImports = {
 
   input:
     'import { Input } from "@/components/ui/input";',
+
+  textarea:
+    'import { Textarea } from "@/components/ui/textarea";',
+
+  popover: `import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";`,
+
+  form: `import {
+  Form,
+  FormActions,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormLabel,
+  FormMessage,
+  FormSection,
+  FormSectionDescription,
+  FormSectionHeader,
+  FormSectionTitle,
+} from "@/components/ui/form";`,
 
   tabs: `import {
   Tabs,
