@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "start": "node bin/cli.js",
-    "test": "node test/native.test.js && node bin/cli.js --help && node bin/cli.js list",
+    "test": "node test/config.test.js && node test/native.test.js && node test/cli-persistence.test.js && node bin/cli.js --help && node bin/cli.js list",
     "pack:check": "npm pack --dry-run"
   },
   "keywords": [

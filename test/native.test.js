@@ -162,7 +162,9 @@ test("native initialization preserves a pre-existing config", async () => {
   const customConfig = '{"custom":true}\n';
   await writeFile(configPath, customConfig, "utf8");
   await withFakeExecutable({}, () => initializeWithNative({ cwd }));
-  assert.equal(await readFile(configPath, "utf8"), customConfig);
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  assert.equal(config.custom, true);
+  assert.equal(config.installer, "native");
 });
 
 for (const fallback of [
@@ -417,6 +419,9 @@ test("shadcn init applies the shared foundation and add uses the Binhlaig URL", 
           (await stat(path.join(cwd, "components", "ui"))).isDirectory(),
           true
         );
+        const config = JSON.parse(await readFile(path.join(cwd, "binhlaig.json"), "utf8"));
+        assert.equal(config.installer, "shadcn");
+        assert.equal(config.base, "radix");
 
         await installWithShadcn({ cwd, component: "button", overwrite: true });
         const npxCalls = await readFile(npxLog, "utf8");

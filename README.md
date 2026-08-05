@@ -28,18 +28,16 @@ Run the latest published version without installing it globally:
 npx binhlaig-ui@latest init
 ```
 
-Choose:
-
-```text
-Binhlaig Native Beta
-```
-
-Then install a component:
+Choose either installer. The selection is saved in `binhlaig.json`, so later
+commands automatically use it:
 
 ```bash
-npx binhlaig-ui@latest add button --installer native
-npx binhlaig-ui@latest add button --installer shadcn
+npx binhlaig-ui@latest add button
+npx binhlaig-ui@latest add card drawer
 ```
+
+Use `--installer native` or `--installer shadcn` only when you want a
+one-command override of the saved choice.
 
 If an older or standard Shadcn Button already exists, add `--overwrite` to
 replace it with the Binhlaig registry implementation. Otherwise, both
@@ -68,17 +66,25 @@ binhlaig-ui init --installer shadcn
 ```
 
 Native initialization detects the framework, package manager, and `src`
-layout; creates `binhlaig.json`, `components/ui`, and `lib/utils.ts`; adds the
-idempotent Tailwind CSS v4 theme to the global stylesheet; and installs the
-Native runtime dependencies. It does not overwrite an existing configuration
-or utility file.
+layout; creates or updates `binhlaig.json`, creates `components/ui` and
+`lib/utils.ts`; adds the idempotent Tailwind CSS v4 theme to the global
+stylesheet; and installs the Native runtime dependencies. Existing
+configuration fields and utility files are preserved. Shadcn initialization
+also records its installer and base in `binhlaig.json`.
 
 Both initialization paths manage the same theme between
 `/* binhlaig-ui-theme:start */` and `/* binhlaig-ui-theme:end */`. Re-running
 init updates that managed block while preserving CSS outside it and migrates
 themes created by older CLI versions.
 
-Install the button component with either installer:
+Install one or more components using the installer selected during init:
+
+```bash
+binhlaig-ui add button
+binhlaig-ui add card drawer
+```
+
+The optional explicit installer is a one-command override:
 
 ```bash
 binhlaig-ui add button --installer native
@@ -94,7 +100,7 @@ binhlaig-ui list
 Overwrite existing component files:
 
 ```bash
-binhlaig-ui add button --installer native --overwrite
+binhlaig-ui add button --overwrite
 ```
 
 ## Local CLI development
@@ -111,7 +117,7 @@ Alternatively, run the entry point directly:
 
 ```bash
 node bin/cli.js list
-node bin/cli.js add button --installer native
+node bin/cli.js add button
 ```
 
 Paths containing spaces are supported. The CLI invokes `npx` directly without

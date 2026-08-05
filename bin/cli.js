@@ -8,13 +8,16 @@ import chalk from "chalk";
 
 import {
   initializeWithShadcn,
-  installWithShadcn,
 } from "../lib/installers/shadcn.js";
 
 import {
   initializeWithNative,
-  installWithNative,
 } from "../lib/installers/native.js";
+import {
+  normalizeInstaller,
+  resolveInstaller,
+} from "../lib/config.js";
+import { addComponents } from "../lib/add.js";
 
 const program = new Command();
 
@@ -34,6 +37,7 @@ const availableComponents = [
   "tabs",
   "popover",
   "form",
+  "drawer",
   "alert-dialog",
 ];
 
@@ -82,6 +86,16 @@ const componentImports = {
   FormSectionHeader,
   FormSectionTitle,
 } from "@/components/ui/form";`,
+
+  drawer: `import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";`,
 
   tabs: `import {
   Tabs,
@@ -208,7 +222,7 @@ program
         console.log(chalk.gray("Next command:"));
         console.log(
           chalk.cyan(
-            "npx binhlaig-ui@latest add button --installer native"
+            "npx binhlaig-ui@latest add button"
           )
         );
 
@@ -323,8 +337,7 @@ program
   )
   .option(
     "-i, --installer <installer>",
-    "Installer: native or shadcn",
-    "shadcn"
+    "Installer: native or shadcn"
   )
   .option(
     "-o, --overwrite",
@@ -332,11 +345,14 @@ program
     false
   )
   .action(async (components, options) => {
-    const installer =
-      normalizeInstaller(options.installer);
-
-    if (!installer) {
-      printInstallerError(options.installer);
+    let installer;
+    try {
+      installer = await resolveInstaller({
+        cwd: process.cwd(),
+        explicitInstaller: options.installer,
+      });
+    } catch (error) {
+      printFailure("Unable to select an installer", error);
       return;
     }
 
@@ -390,30 +406,22 @@ program
     );
 
     try {
-      if (installer === "native") {
-        await installWithNative({
-          cwd: process.cwd(),
-          components: normalizedComponents,
-          overwrite: options.overwrite,
-        });
-      } else {
-        for (const component of
-          normalizedComponents) {
+      if (installer === "shadcn") {
+        for (const component of normalizedComponents) {
           console.log();
-
           console.log(
             chalk.cyan(
               `Installing ${component}...`
             )
           );
-
-          await installWithShadcn({
-            cwd: process.cwd(),
-            component,
-            overwrite: options.overwrite,
-          });
         }
       }
+      await addComponents({
+        cwd: process.cwd(),
+        components: normalizedComponents,
+        explicitInstaller: options.installer,
+        overwrite: options.overwrite,
+      });
 
       console.log();
 
@@ -469,25 +477,6 @@ program
     );
     console.log();
   });
-
-function normalizeInstaller(installer) {
-  if (!installer) {
-    return null;
-  }
-
-  const normalized = String(installer)
-    .trim()
-    .toLowerCase();
-
-  if (
-    normalized !== "native" &&
-    normalized !== "shadcn"
-  ) {
-    return null;
-  }
-
-  return normalized;
-}
 
 function printInstallerError(installer) {
   console.error(
