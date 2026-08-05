@@ -33,7 +33,7 @@ commands automatically use it:
 
 ```bash
 npx binhlaig-ui@latest add button
-npx binhlaig-ui@latest add card drawer
+npx binhlaig-ui@latest add alert avatar breadcrumb
 ```
 
 Use `--installer native` or `--installer shadcn` only when you want a
@@ -81,14 +81,13 @@ Install one or more components using the installer selected during init:
 
 ```bash
 binhlaig-ui add button
-binhlaig-ui add card drawer
+binhlaig-ui add alert avatar breadcrumb
 ```
 
 The optional explicit installer is a one-command override:
 
 ```bash
-binhlaig-ui add button --installer native
-binhlaig-ui add button --installer shadcn
+binhlaig-ui add dialog --installer native
 ```
 
 List the available components:
@@ -100,8 +99,14 @@ binhlaig-ui list
 Overwrite existing component files:
 
 ```bash
-binhlaig-ui add button --overwrite
+binhlaig-ui add dialog --overwrite
 ```
+
+## Available components
+
+`button`, `card`, `badge`, `input`, `textarea`, `tabs`, `popover`, `form`,
+`drawer`, `dialog`, `checkbox`, `alert`, `alert-dialog`, `avatar`, and
+`breadcrumb`.
 
 ## Local CLI development
 

@@ -18,6 +18,7 @@ import {
   resolveInstaller,
 } from "../lib/config.js";
 import { addComponents } from "../lib/add.js";
+import { availableComponents, componentImports } from "../lib/components.js";
 
 const program = new Command();
 
@@ -27,95 +28,6 @@ const packageJson = JSON.parse(
     "utf8"
   )
 );
-
-const availableComponents = [
-  "button",
-  "card",
-  "badge",
-  "input",
-  "textarea",
-  "tabs",
-  "popover",
-  "form",
-  "drawer",
-  "alert-dialog",
-];
-
-const componentImports = {
-  button:
-    'import { Button } from "@/components/ui/button";',
-
-  card: `import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";`,
-
-  badge:
-    'import { Badge } from "@/components/ui/badge";',
-
-  input:
-    'import { Input } from "@/components/ui/input";',
-
-  textarea:
-    'import { Textarea } from "@/components/ui/textarea";',
-
-  popover: `import {
-  Popover,
-  PopoverClose,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";`,
-
-  form: `import {
-  Form,
-  FormActions,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormLabel,
-  FormMessage,
-  FormSection,
-  FormSectionDescription,
-  FormSectionHeader,
-  FormSectionTitle,
-} from "@/components/ui/form";`,
-
-  drawer: `import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";`,
-
-  tabs: `import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";`,
-
-  "alert-dialog": `import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";`,
-};
 
 program
   .name("binhlaig-ui")

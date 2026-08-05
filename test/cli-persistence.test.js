@@ -41,10 +41,11 @@ async function fakeNpx() {
 
 test("real CLI persists and reuses both installer selections", async () => {
   const server = http.createServer((request, response) => {
+    const name = path.basename(request.url, ".json");
     response.setHeader("content-type", "application/json");
     response.end(JSON.stringify({
-      name: "button",
-      files: [{ path: "registry/button.tsx", type: "registry:ui", content: "export const Button = true;\n" }],
+      name,
+      files: [{ path: `registry/${name}.tsx`, type: "registry:ui", content: `export const installed = ${JSON.stringify(name)};\n` }],
     }));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -54,11 +55,14 @@ test("real CLI persists and reuses both installer selections", async () => {
     assert.equal(nativeInit.failed, false, nativeInit.stderr || nativeInit.shortMessage);
     assert.equal(JSON.parse(await readFile(path.join(nativeCwd, "binhlaig.json"), "utf8")).installer, "native");
     const address = server.address();
-    const nativeAdd = await run(nativeCwd, ["add", "button"], {
+    const nativeAdd = await run(nativeCwd, ["add", "alert", "avatar", "breadcrumb"], {
       BINHLAIG_REGISTRY_URL: `http://127.0.0.1:${address.port}/r`,
     });
     assert.equal(nativeAdd.failed, false, nativeAdd.stderr);
     assert.match(nativeAdd.stdout, /Installer: Binhlaig Native Beta/);
+    for (const component of ["alert", "avatar", "breadcrumb"]) {
+      assert.match(await readFile(path.join(nativeCwd, "components", "ui", `${component}.tsx`), "utf8"), new RegExp(component));
+    }
 
     const shadcnCwd = await project();
     const fake = await fakeNpx();
@@ -67,10 +71,16 @@ test("real CLI persists and reuses both installer selections", async () => {
     const shadcnConfig = JSON.parse(await readFile(path.join(shadcnCwd, "binhlaig.json"), "utf8"));
     assert.equal(shadcnConfig.installer, "shadcn");
     assert.equal(shadcnConfig.base, "base");
-    const shadcnAdd = await run(shadcnCwd, ["add", "button"], env);
+    const shadcnAdd = await run(shadcnCwd, ["add", "dialog", "checkbox", "--overwrite"], env);
     assert.equal(shadcnAdd.failed, false, shadcnAdd.stderr);
     assert.match(shadcnAdd.stdout, /Installer: Shadcn CLI Stable/);
-    assert.match(await readFile(fake.log, "utf8"), /shadcn@latest.+add.+button\.json.+--yes/);
+    const shadcnCalls = await readFile(fake.log, "utf8");
+    assert.match(shadcnCalls, /shadcn@latest.+add.+dialog\.json.+--yes.+--overwrite/);
+    assert.match(shadcnCalls, /shadcn@latest.+add.+checkbox\.json.+--yes.+--overwrite/);
+
+    const unknown = await run(nativeCwd, ["add", "not-a-component"]);
+    assert.equal(unknown.failed, true);
+    assert.match(unknown.stderr, /Unknown component\(s\): not-a-component/);
   } finally {
     server.close();
   }
