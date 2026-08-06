@@ -439,6 +439,22 @@ test("shadcn init applies the shared foundation and add uses the Binhlaig URL", 
   }
 });
 
+test("new components use the shared production registry URL", () => {
+  for (const component of [
+    "calendar",
+    "combobox",
+    "command",
+    "collapsible",
+    "data-table",
+  ]) {
+    assert.equal(
+      getComponentUrl(component),
+      `https://ui.binhlaig.com/r/${component}.json`,
+      `${component} must use the production registry URL helper`,
+    );
+  }
+});
+
 function extractManagedTheme(css) {
   const start = css.indexOf(THEME_START_MARKER);
   const end = css.indexOf(THEME_END_MARKER, start);

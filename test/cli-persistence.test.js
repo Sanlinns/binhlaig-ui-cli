@@ -11,6 +11,13 @@ const dependencies = Object.fromEntries([
   "next", "@base-ui/react", "class-variance-authority", "clsx",
   "lucide-react", "tailwind-merge", "tw-animate-css",
 ].map((name) => [name, "1.0.0"]));
+const newComponents = [
+  "calendar",
+  "combobox",
+  "command",
+  "collapsible",
+  "data-table",
+];
 
 async function project() {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "binhlaig-cli-"));
@@ -64,6 +71,22 @@ test("real CLI persists and reuses both installer selections", async () => {
       assert.match(await readFile(path.join(nativeCwd, "components", "ui", `${component}.tsx`), "utf8"), new RegExp(component));
     }
 
+    for (const component of newComponents) {
+      const singleAdd = await run(nativeCwd, ["add", component], {
+        BINHLAIG_REGISTRY_URL: `http://127.0.0.1:${address.port}/r`,
+      });
+      assert.equal(singleAdd.failed, false, `${component}: ${singleAdd.stderr}`);
+      assert.match(singleAdd.stdout, new RegExp(`Use ${component} with:`));
+    }
+
+    const multiCwd = await project();
+    await writeFile(path.join(multiCwd, "binhlaig.json"), '{"installer":"native"}\n');
+    const multiAdd = await run(multiCwd, ["add", ...newComponents], {
+      BINHLAIG_REGISTRY_URL: `http://127.0.0.1:${address.port}/r`,
+    });
+    assert.equal(multiAdd.failed, false, multiAdd.stderr);
+    assert.match(multiAdd.stdout, /calendar, combobox, command, collapsible, data-table installed successfully/);
+
     const shadcnCwd = await project();
     const fake = await fakeNpx();
     const env = { PATH: `${fake.directory}${path.delimiter}${process.env.PATH}` };
@@ -77,6 +100,17 @@ test("real CLI persists and reuses both installer selections", async () => {
     const shadcnCalls = await readFile(fake.log, "utf8");
     assert.match(shadcnCalls, /shadcn@latest.+add.+dialog\.json.+--yes.+--overwrite/);
     assert.match(shadcnCalls, /shadcn@latest.+add.+checkbox\.json.+--yes.+--overwrite/);
+
+    const shadcnNewAdd = await run(shadcnCwd, ["add", ...newComponents], env);
+    assert.equal(shadcnNewAdd.failed, false, shadcnNewAdd.stderr);
+    const allShadcnCalls = await readFile(fake.log, "utf8");
+    for (const component of newComponents) {
+      assert.match(
+        allShadcnCalls,
+        new RegExp(`shadcn@latest.+add.+${component}\\.json.+--yes`),
+        `${component} must be accepted by the Shadcn flow`,
+      );
+    }
 
     const unknown = await run(nativeCwd, ["add", "not-a-component"]);
     assert.equal(unknown.failed, true);

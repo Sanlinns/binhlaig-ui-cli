@@ -34,6 +34,12 @@ commands automatically use it:
 ```bash
 npx binhlaig-ui@latest add button
 npx binhlaig-ui@latest add alert avatar breadcrumb
+npx binhlaig-ui@latest add calendar
+npx binhlaig-ui@latest add combobox
+npx binhlaig-ui@latest add command
+npx binhlaig-ui@latest add collapsible
+npx binhlaig-ui@latest add data-table
+npx binhlaig-ui@latest add calendar combobox command collapsible data-table
 ```
 
 Use `--installer native` or `--installer shadcn` only when you want a
@@ -105,8 +111,8 @@ binhlaig-ui add dialog --overwrite
 ## Available components
 
 `button`, `card`, `badge`, `input`, `textarea`, `tabs`, `popover`, `form`,
-`drawer`, `dialog`, `checkbox`, `alert`, `alert-dialog`, `avatar`, and
-`breadcrumb`.
+`drawer`, `dialog`, `checkbox`, `alert`, `alert-dialog`, `avatar`, `breadcrumb`,
+`calendar`, `combobox`, `command`, `collapsible`, and `data-table`.
 
 ## Local CLI development
 
