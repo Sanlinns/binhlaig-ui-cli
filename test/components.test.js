@@ -28,6 +28,10 @@ const expected = [
   "command",
   "collapsible",
   "data-table",
+  "label",
+  "toast",
+  "navbar",
+  "pagination",
 ];
 
 test("the public component manifest is complete and unique", () => {
