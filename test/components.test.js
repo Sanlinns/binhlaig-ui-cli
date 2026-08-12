@@ -32,6 +32,7 @@ const expected = [
   "toast",
   "navbar",
   "pagination",
+  "input-otp",
 ];
 
 test("the public component manifest is complete and unique", () => {
